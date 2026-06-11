@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: retype-cloud
+    runtime: docker
+    plan: free
+    envVars:
+      - key: PORT
+        value: 3000
