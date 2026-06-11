@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Retype</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0c0c0c;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 48px;
+      padding: 32px;
+    }
+
+    header {
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 2.4rem;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      color: #fff;
+    }
+
+    h1 span {
+      color: #555;
+    }
+
+    .tagline {
+      margin-top: 6px;
+      font-size: 0.85rem;
+      color: #444;
+    }
+
+    .panels {
+      display: flex;
+      gap: 24px;
+      width: 100%;
+      max-width: 700px;
+    }
+
+    .panel {
+      flex: 1;
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 14px;
+      padding: 28px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .panel h2 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #555;
+    }
+
+    .drop-zone {
+      border: 1.5px dashed #222;
+      border-radius: 10px;
+      padding: 32px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      color: #333;
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+
+    .drop-zone:hover, .drop-zone.over {
+      border-color: #333;
+      background: #181818;
+      color: #666;
+    }
+
+    .drop-zone.has-file {
+      border-color: #2a2a2a;
+      color: #888;
+    }
+
+    input[type=file] { display: none; }
+
+    input[type=text] {
+      width: 100%;
+      background: #0c0c0c;
+      border: 1px solid #1e1e1e;
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 1.1rem;
+      font-family: monospace;
+      letter-spacing: 0.15em;
+      padding: 12px 14px;
+      outline: none;
+      text-transform: lowercase;
+      transition: border-color 0.15s;
+    }
+
+    input[type=text]:focus { border-color: #333; }
+    input[type=text]::placeholder { color: #2a2a2a; letter-spacing: 0.08em; }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      background: #fff;
+      color: #000;
+    }
+
+    button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.25; cursor: default; }
+
+    .code-display {
+      display: none;
+      text-align: center;
+      padding: 16px;
+      background: #0c0c0c;
+      border: 1px solid #1e1e1e;
+      border-radius: 10px;
+    }
+
+    .code-display .code {
+      font-family: monospace;
+      font-size: 2rem;
+      letter-spacing: 0.2em;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .code-display .expiry {
+      margin-top: 6px;
+      font-size: 0.75rem;
+      color: #444;
+    }
+
+    .status {
+      font-size: 0.8rem;
+      color: #555;
+      min-height: 16px;
+      text-align: center;
+    }
+
+    .status.ok  { color: #4caf7d; }
+    .status.err { color: #e06c6c; }
+
+    @media (max-width: 560px) {
+      .panels { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Retype<span>.</span></h1>
+  <p class="tagline">Your entire project. One string. Nothing else.</p>
+</header>
+
+<div class="panels">
+
+  <!-- PUSH -->
+  <div class="panel">
+    <h2>Push</h2>
+
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <div id="drop-label">Click or drop a .retype file</div>
+    </div>
+    <input type="file" id="file-input" accept=".retype"/>
+
+    <button id="btn-push" disabled onclick="doPush()">Push</button>
+
+    <div class="code-display" id="code-display">
+      <div class="code" id="code-text"></div>
+      <div class="expiry">expires in 8 minutes</div>
+    </div>
+
+    <p class="status" id="push-status"></p>
+  </div>
+
+  <!-- PULL -->
+  <div class="panel">
+    <h2>Pull</h2>
+
+    <input type="text" id="code-input" placeholder="enter code" maxlength="6"/>
+
+    <button onclick="doPull()">Pull</button>
+
+    <p class="status" id="pull-status"></p>
+  </div>
+
+</div>
+
+<script>
+  let selectedFile = null;
+
+  // --- Drop zone ---
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) setFile(fileInput.files[0]);
+  });
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('over');
+    if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+  });
+
+  function setFile(file) {
+    selectedFile = file;
+    document.getElementById('drop-label').textContent = file.name;
+    dropZone.classList.add('has-file');
+    document.getElementById('btn-push').disabled = false;
+    document.getElementById('code-display').style.display = 'none';
+    setStatus('push', '');
+  }
+
+  // --- Push ---
+  async function doPush() {
+    if (!selectedFile) return;
+    setStatus('push', 'Uploading...');
+    document.getElementById('btn-push').disabled = true;
+    document.getElementById('code-display').style.display = 'none';
+
+    try {
+      const resp = await fetch(`/push?filename=${encodeURIComponent(selectedFile.name)}`, {
+        method: 'POST',
+        body: selectedFile,
+      });
+
+      if (!resp.ok) throw new Error(await resp.text());
+
+      const code = await resp.text();
+      document.getElementById('code-text').textContent = code;
+      document.getElementById('code-display').style.display = 'block';
+      setStatus('push', '');
+
+      // Auto-copy code
+      navigator.clipboard.writeText(code).catch(() => {});
+
+    } catch (e) {
+      setStatus('push', `Failed: ${e.message}`, 'err');
+    } finally {
+      document.getElementById('btn-push').disabled = false;
+    }
+  }
+
+  // --- Pull ---
+  async function doPull() {
+    const code = document.getElementById('code-input').value.trim().toLowerCase();
+    if (!code) { setStatus('pull', 'Enter a code first.', 'err'); return; }
+
+    setStatus('pull', 'Pulling...');
+
+    try {
+      const resp = await fetch(`/pull/${code}`);
+      if (!resp.ok) throw new Error(await resp.text());
+
+      // Trigger download
+      const blob = await resp.blob();
+      const disposition = resp.headers.get('content-disposition') || '';
+      const match = disposition.match(/filename="([^"]+)"/);
+      const filename = match ? match[1] : `${code}.retype`;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      setStatus('pull', 'Downloaded.', 'ok');
+    } catch (e) {
+      setStatus('pull', `Failed: ${e.message}`, 'err');
+    }
+  }
+
+  // Enter key on code input
+  document.getElementById('code-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doPull();
+  });
+
+  function setStatus(panel, msg, type = '') {
+    const el = document.getElementById(`${panel}-status`);
+    el.textContent = msg;
+    el.className = 'status' + (type ? ` ${type}` : '');
+  }
+</script>
+
+</body>
+</html>
